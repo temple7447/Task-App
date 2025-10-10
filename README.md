@@ -1,50 +1,179 @@
-# Welcome to your Expo app 👋
+# TaskMaster - Personal Task Management App 📝
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A modern React Native task management application built with Expo, designed to help you organize, track, and complete your tasks efficiently.
 
-## Get started
+![TaskMaster](https://img.shields.io/badge/Platform-iOS%20%7C%20Android%20%7C%20Web-blue) ![React Native](https://img.shields.io/badge/React%20Native-0.81-green) ![Expo](https://img.shields.io/badge/Expo-~54.0-black)
 
-1. Install dependencies
+## 🚀 Features
 
+### 📱 **Onboarding Experience**
+- Beautiful multi-step welcome screens
+- Interactive introduction to app features
+- First-time user guidance
+
+### ✅ **Task Management**
+- **Create Tasks**: Add tasks with titles, descriptions, dates, and locations
+- **Status Tracking**: Mark tasks as pending, in progress, completed, or cancelled
+- **Smart Organization**: Sort by date added, status, or due date
+- **Advanced Filtering**: Filter tasks by status or search by content
+- **Location Support**: Add location information to your tasks
+
+### 🎨 **Modern Design**
+- Clean, intuitive interface
+- Dark/light mode support
+- Consistent color scheme
+- Smooth animations and transitions
+- Accessibility features
+
+### ⚙️ **Settings & Data Management**
+- Reset onboarding experience
+- Clear all data
+- App version and build information
+
+## 🛠 Tech Stack
+
+- **Framework**: React Native with Expo
+- **Language**: TypeScript
+- **Navigation**: Expo Router
+- **Storage**: AsyncStorage
+- **Icons**: Ionicons
+- **Styling**: StyleSheet with dynamic theming
+
+## 📦 Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd Task-App
+   ```
+
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-2. Start the app
-
+3. **Start the development server**
    ```bash
+   npm start
+   # or
    npx expo start
    ```
 
-In the output, you'll find options to open the app in a
+4. **Run on your preferred platform**
+   - Press `i` for iOS simulator
+   - Press `a` for Android emulator  
+   - Press `w` for web browser
+   - Scan the QR code with Expo Go app
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+## 🏗 Project Structure
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+Task-App/
+├── app/                    # Main app directory (Expo Router)
+│   ├── (tabs)/            # Tab-based navigation
+│   │   ├── index.tsx      # Tasks tab (main screen)
+│   │   ├── explore.tsx    # Settings tab
+│   │   └── _layout.tsx    # Tab layout configuration
+│   └── _layout.tsx        # Root layout
+├── components/            # Reusable components
+│   ├── onboarding-screen.tsx    # Welcome/onboarding flow
+│   ├── task-list-screen.tsx     # Main task list view
+│   ├── add-task-screen.tsx      # Add new task form
+│   ├── main-app-screen.tsx      # App state management
+│   └── [other components]
+├── constants/            # App constants and theming
+│   └── theme.ts         # Color scheme and styling
+└── hooks/              # Custom React hooks
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🎯 Key Components
 
-## Learn more
+### OnboardingScreen
+- Multi-step introduction with smooth transitions
+- Feature highlights with icons and descriptions
+- Skip functionality and progress indicators
 
-To learn more about developing your project with Expo, look at the following resources:
+### TaskListScreen  
+- Comprehensive task display with cards
+- Search and filter functionality
+- Sort options (date added, status, due date)
+- Quick action buttons (update status, delete)
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### AddTaskScreen
+- Form validation and user feedback
+- Real-time task preview
+- Date/time input with formatting
+- Character counters and input limits
 
-## Join the community
+### MainAppScreen
+- Navigation state management
+- Onboarding completion tracking
+- Screen transitions and app flow
 
-Join our community of developers creating universal apps.
+## 💾 Data Storage
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+The app uses AsyncStorage for local data persistence:
+- **Tasks**: Stored as JSON array with task objects
+- **Onboarding**: Boolean flag for completion status
+- **Offline-first**: All data is stored locally on device
+
+## 🎨 Design System
+
+### Colors
+- **Primary**: #6B73FF (Purple)
+- **Success**: #4ECDC4 (Teal)
+- **Warning**: #FFE66D (Yellow)
+- **Error**: #FF4757 (Red)
+- **Dark/Light**: Adaptive theming support
+
+### Task Status Colors
+- **Pending**: Yellow (#FFE66D)
+- **In Progress**: Purple (#6B73FF)
+- **Completed**: Teal (#4ECDC4)
+- **Cancelled**: Red (#FF6B6B)
+
+## 🔧 Configuration
+
+The app is configured in `app.json` with:
+- App name and slug
+- Platform-specific settings
+- Splash screen configuration
+- Icon and adaptive icon setup
+
+## 🚀 Build and Deploy
+
+### Development
+```bash
+npm run start        # Start development server
+npm run android     # Run on Android
+npm run ios         # Run on iOS
+npm run web         # Run on web
+```
+
+### Production Build
+```bash
+eas build --platform all    # Build for all platforms
+eas submit                  # Submit to app stores
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- Built with [Expo](https://expo.dev) and [React Native](https://reactnative.dev)
+- Icons by [Ionicons](https://ionic.io/ionicons)
+- Inspired by modern task management principles
+
+---
+
+**Made with ❤️ for efficient task management**

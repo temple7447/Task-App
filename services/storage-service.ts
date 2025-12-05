@@ -13,11 +13,13 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Task } from '../types/task-types';
+import { Project, Task } from '../types/task-types';
 
 // Storage keys - centralized for consistency and maintenance
 export const STORAGE_KEYS = {
   TASKS: 'taskmaster_tasks',
+  PROJECTS: 'taskmaster_projects',
+  EARNINGS: 'taskmaster_earnings',
   ONBOARDING_COMPLETED: 'taskmaster_onboarding_completed',
   USER_PREFERENCES: 'taskmaster_user_preferences',
   APP_VERSION: 'taskmaster_app_version',
@@ -41,7 +43,7 @@ export class StorageError extends Error {
   public readonly timestamp: Date;
 
   constructor(
-    message: string, 
+    message: string,
     type: StorageErrorType = StorageErrorType.UNKNOWN_ERROR,
     originalError?: Error
   ) {
@@ -128,6 +130,76 @@ function sanitizeTask(task: Task): Task {
     location: task.location ? String(task.location).trim().substring(0, 200) : '', // Limit location length
     status: task.status,
     createdAt: new Date(task.createdAt),
+    projectId: task.projectId ? String(task.projectId).trim() : undefined,
+    isChecked: Boolean(task.isChecked),
+  };
+}
+
+/**
+ * Validates if a project object has all required properties and correct types
+ * @param project - The project object to validate
+ * @returns boolean indicating if the project is valid
+ */
+function validateProjectObject(project: any): project is Project {
+  if (!project || typeof project !== 'object') {
+    return false;
+  }
+
+  // Check required string properties
+  const requiredStrings = ['id', 'name', 'description', 'status'];
+  for (const prop of requiredStrings) {
+    if (!project[prop] || typeof project[prop] !== 'string') {
+      return false;
+    }
+  }
+
+  // Validate status enum
+  const validStatuses = ['active', 'completed', 'archived', 'onHold'];
+  if (!validStatuses.includes(project.status)) {
+    return false;
+  }
+
+  // Validate dates
+  try {
+    if (project.createdAt) {
+      new Date(project.createdAt);
+    }
+    if (project.updatedAt) {
+      new Date(project.updatedAt);
+    }
+  } catch {
+    return false;
+  }
+
+  // Optional fields validation
+  if (project.color !== undefined && typeof project.color !== 'string') {
+    return false;
+  }
+
+  if (project.tags !== undefined && !Array.isArray(project.tags)) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Sanitizes a project object to ensure data integrity
+ * @param project - The project object to sanitize
+ * @returns Sanitized project object
+ */
+function sanitizeProject(project: Project): Project {
+  return {
+    id: String(project.id).trim(),
+    name: String(project.name).trim().substring(0, 100), // Limit name length
+    description: String(project.description).trim().substring(0, 500), // Limit description length
+    status: project.status,
+    createdAt: new Date(project.createdAt),
+    updatedAt: new Date(project.updatedAt),
+    color: project.color ? String(project.color).trim() : undefined,
+    tags: project.tags || undefined,
+    completedAt: project.completedAt ? new Date(project.completedAt) : undefined,
+    taskCount: project.taskCount || 0,
   };
 }
 
@@ -145,7 +217,7 @@ export class StorageService {
       console.log('[StorageService] Retrieving tasks from local storage');
 
       const tasksJsonString = await AsyncStorage.getItem(STORAGE_KEYS.TASKS);
-      
+
       // Handle case where no tasks exist yet
       if (!tasksJsonString) {
         console.log('[StorageService] No tasks found, returning empty array');
@@ -177,7 +249,7 @@ export class StorageService {
       const validatedTasks: Task[] = [];
       for (let i = 0; i < parsedTasks.length; i++) {
         const task = parsedTasks[i];
-        
+
         try {
           // Convert date strings back to Date objects
           if (task.dateTime) {
@@ -284,7 +356,7 @@ export class StorageService {
       // Check data size to prevent storage overflow
       const dataSize = new Blob([tasksJsonString]).size;
       const maxSize = 5 * 1024 * 1024; // 5MB limit for safety
-      
+
       if (dataSize > maxSize) {
         throw new StorageError(
           `Data size (${Math.round(dataSize / 1024)}KB) exceeds maximum allowed size`,
@@ -486,7 +558,7 @@ export class StorageService {
   static async getUserPreferences(): Promise<UserPreferences> {
     try {
       const prefsJsonString = await AsyncStorage.getItem(STORAGE_KEYS.USER_PREFERENCES);
-      
+
       if (!prefsJsonString) {
         return DEFAULT_PREFERENCES;
       }
@@ -509,9 +581,9 @@ export class StorageService {
     try {
       const currentPrefs = await this.getUserPreferences();
       const updatedPrefs = { ...currentPrefs, ...preferences };
-      
+
       await AsyncStorage.setItem(
-        STORAGE_KEYS.USER_PREFERENCES, 
+        STORAGE_KEYS.USER_PREFERENCES,
         JSON.stringify(updatedPrefs)
       );
     } catch (error) {
@@ -573,6 +645,336 @@ export class StorageService {
         StorageErrorType.UNKNOWN_ERROR,
         error as Error
       );
+    }
+  }
+
+  /**
+   * ============================================================================
+   * PROJECT MANAGEMENT METHODS
+   * ============================================================================
+   */
+
+  /**
+   * Retrieves all projects from local storage with comprehensive error handling
+   * @returns Promise<Project[]> - Array of validated projects
+   */
+  static async getProjects(): Promise<Project[]> {
+    try {
+      console.log('[StorageService] Retrieving projects from local storage');
+
+      const projectsJsonString = await AsyncStorage.getItem(STORAGE_KEYS.PROJECTS);
+
+      if (!projectsJsonString) {
+        console.log('[StorageService] No projects found, returning empty array');
+        return [];
+      }
+
+      let parsedProjects: any;
+      try {
+        parsedProjects = JSON.parse(projectsJsonString);
+      } catch (parseError) {
+        console.error('[StorageService] JSON parse error:', parseError);
+        throw new StorageError(
+          'Failed to parse projects data. Data may be corrupted.',
+          StorageErrorType.PARSE_ERROR,
+          parseError as Error
+        );
+      }
+
+      if (!Array.isArray(parsedProjects)) {
+        throw new StorageError(
+          'Invalid projects data format. Expected array.',
+          StorageErrorType.DATA_CORRUPTION
+        );
+      }
+
+      const validatedProjects: Project[] = [];
+      for (let i = 0; i < parsedProjects.length; i++) {
+        const project = parsedProjects[i];
+
+        try {
+          // Convert date strings back to Date objects
+          if (project.createdAt) {
+            project.createdAt = new Date(project.createdAt);
+          }
+          if (project.updatedAt) {
+            project.updatedAt = new Date(project.updatedAt);
+          }
+          if (project.completedAt) {
+            project.completedAt = new Date(project.completedAt);
+          }
+
+          if (!validateProjectObject(project)) {
+            console.warn(`[StorageService] Invalid project at index ${i}, skipping:`, project);
+            continue;
+          }
+
+          validatedProjects.push(sanitizeProject(project));
+        } catch (projectError) {
+          console.warn(`[StorageService] Error processing project at index ${i}:`, projectError);
+          continue;
+        }
+      }
+
+      console.log(`[StorageService] Successfully retrieved ${validatedProjects.length} valid projects`);
+      return validatedProjects;
+
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+
+      if (error instanceof Error) {
+        if (error.message.includes('Permission')) {
+          throw new StorageError(
+            'Permission denied to access local storage',
+            StorageErrorType.PERMISSION_DENIED,
+            error
+          );
+        }
+      }
+
+      throw new StorageError(
+        'Failed to retrieve projects from storage',
+        StorageErrorType.UNKNOWN_ERROR,
+        error as Error
+      );
+    }
+  }
+
+  /**
+   * Saves projects to local storage with validation and backup
+   * @param projects - Array of projects to save
+   * @returns Promise<void>
+   */
+  static async saveProjects(projects: Project[]): Promise<void> {
+    try {
+      console.log(`[StorageService] Saving ${projects.length} projects to local storage`);
+
+      if (!Array.isArray(projects)) {
+        throw new StorageError(
+          'Invalid projects data: expected array',
+          StorageErrorType.VALIDATION_ERROR
+        );
+      }
+
+      const validatedProjects = projects.map((project, index) => {
+        if (!validateProjectObject(project)) {
+          throw new StorageError(
+            `Invalid project at index ${index}: missing required properties`,
+            StorageErrorType.VALIDATION_ERROR
+          );
+        }
+        return sanitizeProject(project);
+      });
+
+      // Create backup before saving new data
+      try {
+        const existingProjects = await AsyncStorage.getItem(STORAGE_KEYS.PROJECTS);
+        if (existingProjects) {
+          await AsyncStorage.setItem(`${STORAGE_KEYS.PROJECTS}_backup`, existingProjects);
+          console.log('[StorageService] Created backup of existing projects');
+        }
+      } catch (backupError) {
+        console.warn('[StorageService] Failed to create backup:', backupError);
+      }
+
+      const projectsJsonString = JSON.stringify(validatedProjects);
+
+      // Check data size
+      const dataSize = new Blob([projectsJsonString]).size;
+      const maxSize = 5 * 1024 * 1024; // 5MB limit
+
+      if (dataSize > maxSize) {
+        throw new StorageError(
+          `Data size (${Math.round(dataSize / 1024)}KB) exceeds maximum allowed size`,
+          StorageErrorType.STORAGE_FULL
+        );
+      }
+
+      await AsyncStorage.setItem(STORAGE_KEYS.PROJECTS, projectsJsonString);
+      console.log('[StorageService] Projects saved successfully');
+
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+
+      if (error instanceof Error && error.message.includes('quota')) {
+        throw new StorageError(
+          'Storage quota exceeded. Please delete some projects to free up space.',
+          StorageErrorType.STORAGE_FULL,
+          error
+        );
+      }
+
+      throw new StorageError(
+        'Failed to save projects to storage',
+        StorageErrorType.UNKNOWN_ERROR,
+        error as Error
+      );
+    }
+  }
+
+  /**
+   * Adds a new project with validation
+   * @param project - The project to add
+   * @returns Promise<void>
+   */
+  static async addProject(project: Project): Promise<void> {
+    try {
+      console.log('[StorageService] Adding new project:', project.name);
+
+      if (!validateProjectObject(project)) {
+        throw new StorageError(
+          'Invalid project data provided',
+          StorageErrorType.VALIDATION_ERROR
+        );
+      }
+
+      const existingProjects = await this.getProjects();
+
+      if (existingProjects.some(existingProject => existingProject.id === project.id)) {
+        throw new StorageError(
+          'Project with this ID already exists',
+          StorageErrorType.VALIDATION_ERROR
+        );
+      }
+
+      const updatedProjects = [...existingProjects, sanitizeProject(project)];
+      await this.saveProjects(updatedProjects);
+
+      console.log('[StorageService] New project added successfully');
+
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+      throw new StorageError(
+        'Failed to add new project',
+        StorageErrorType.UNKNOWN_ERROR,
+        error as Error
+      );
+    }
+  }
+
+  /**
+   * Updates an existing project
+   * @param projectId - ID of the project to update
+   * @param updates - Partial project object with updates
+   * @returns Promise<void>
+   */
+  static async updateProject(projectId: string, updates: Partial<Project>): Promise<void> {
+    try {
+      console.log('[StorageService] Updating project:', projectId);
+
+      const existingProjects = await this.getProjects();
+      const projectIndex = existingProjects.findIndex(project => project.id === projectId);
+
+      if (projectIndex === -1) {
+        throw new StorageError(
+          'Project not found',
+          StorageErrorType.VALIDATION_ERROR
+        );
+      }
+
+      // Create updated project with updatedAt timestamp
+      const updatedProject = {
+        ...existingProjects[projectIndex],
+        ...updates,
+        updatedAt: new Date()
+      };
+
+      if (!validateProjectObject(updatedProject)) {
+        throw new StorageError(
+          'Updated project data is invalid',
+          StorageErrorType.VALIDATION_ERROR
+        );
+      }
+
+      existingProjects[projectIndex] = sanitizeProject(updatedProject);
+      await this.saveProjects(existingProjects);
+
+      console.log('[StorageService] Project updated successfully');
+
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+      throw new StorageError(
+        'Failed to update project',
+        StorageErrorType.UNKNOWN_ERROR,
+        error as Error
+      );
+    }
+  }
+
+  /**
+   * Deletes a project by ID
+   * @param projectId - ID of the project to delete
+   * @returns Promise<void>
+   */
+  static async deleteProject(projectId: string): Promise<void> {
+    try {
+      console.log('[StorageService] Deleting project:', projectId);
+
+      const existingProjects = await this.getProjects();
+      const filteredProjects = existingProjects.filter(project => project.id !== projectId);
+
+      if (filteredProjects.length === existingProjects.length) {
+        throw new StorageError(
+          'Project not found',
+          StorageErrorType.VALIDATION_ERROR
+        );
+      }
+
+      await this.saveProjects(filteredProjects);
+      console.log('[StorageService] Project deleted successfully');
+
+    } catch (error) {
+      if (error instanceof StorageError) {
+        throw error;
+      }
+      throw new StorageError(
+        'Failed to delete project',
+        StorageErrorType.UNKNOWN_ERROR,
+        error as Error
+      );
+    }
+  }
+
+  /**
+   * Gets all tasks for a specific project
+   * @param projectId - ID of the project
+   * @returns Promise<Task[]> - Array of tasks for the project
+   */
+  static async getTasksByProject(projectId: string): Promise<Task[]> {
+    try {
+      const allTasks = await this.getTasks();
+      return allTasks.filter(task => task.projectId === projectId);
+    } catch (error) {
+      throw new StorageError(
+        'Failed to get tasks for project',
+        StorageErrorType.UNKNOWN_ERROR,
+        error as Error
+      );
+    }
+  }
+
+  /**
+   * Updates the task count for a project
+   * @param projectId - ID of the project to update
+   * @returns Promise<void>
+   */
+  static async updateProjectTaskCount(projectId: string): Promise<void> {
+    try {
+      const tasks = await this.getTasksByProject(projectId);
+      const taskCount = tasks.length;
+
+      await this.updateProject(projectId, { taskCount });
+    } catch (error) {
+      console.warn('[StorageService] Failed to update project task count:', error);
+      // Don't throw error - this is a non-critical operation
     }
   }
 }

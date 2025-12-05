@@ -18,36 +18,42 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
 export interface Task {
   /** Unique identifier for the task */
   id: string;
-  
+
   /** Task title - limited to 100 characters */
   title: string;
-  
+
   /** Detailed description of the task - limited to 500 characters */
   description: string;
-  
+
   /** When the task should be completed */
   dateTime: Date;
-  
+
   /** Optional location for the task - limited to 200 characters */
   location?: string;
-  
+
   /** Current status of the task */
   status: TaskStatus;
-  
+
   /** When the task was created */
   createdAt: Date;
-  
+
   /** Optional priority level for future use */
   priority?: TaskPriority;
-  
+
   /** Optional tags for categorization */
   tags?: string[];
-  
+
   /** Optional estimated duration in minutes */
   estimatedDuration?: number;
-  
+
   /** Optional completion date when status becomes 'completed' */
   completedAt?: Date;
+
+  /** Optional project ID to link task to a project */
+  projectId?: string;
+
+  /** Checkbox state for quick completion toggle */
+  isChecked: boolean;
 }
 
 /**
@@ -62,6 +68,7 @@ export interface CreateTaskInput {
   priority?: TaskPriority;
   tags?: string[];
   estimatedDuration?: number;
+  projectId?: string;
 }
 
 /**
@@ -100,19 +107,19 @@ export type TaskFilterOption = 'all' | TaskStatus;
 export interface TaskQueryOptions {
   /** Search term to filter tasks by title or description */
   searchTerm?: string;
-  
+
   /** Status filter */
   statusFilter?: TaskFilterOption;
-  
+
   /** Sort field */
   sortBy?: TaskSortOption;
-  
+
   /** Sort order */
   sortOrder?: SortOrder;
-  
+
   /** Priority filter */
   priorityFilter?: TaskPriority;
-  
+
   /** Date range filter */
   dateRange?: {
     start?: Date;
@@ -126,25 +133,25 @@ export interface TaskQueryOptions {
 export interface TaskStatistics {
   /** Total number of tasks */
   total: number;
-  
+
   /** Number of pending tasks */
   pending: number;
-  
+
   /** Number of in-progress tasks */
   inProgress: number;
-  
+
   /** Number of completed tasks */
   completed: number;
-  
+
   /** Number of cancelled tasks */
   cancelled: number;
-  
+
   /** Completion rate as percentage */
   completionRate: number;
-  
+
   /** Average task completion time in days */
   averageCompletionTime?: number;
-  
+
   /** Most productive day of the week */
   mostProductiveDay?: string;
 }
@@ -155,10 +162,10 @@ export interface TaskStatistics {
 export interface ValidationError {
   /** Field name where the error occurred */
   field: string;
-  
+
   /** Error message to display to user */
   message: string;
-  
+
   /** Error code for programmatic handling */
   code?: string;
 }
@@ -169,7 +176,7 @@ export interface ValidationError {
 export interface ValidationResult {
   /** Whether the validation passed */
   isValid: boolean;
-  
+
   /** Array of validation errors if any */
   errors: ValidationError[];
 }
@@ -180,16 +187,16 @@ export interface ValidationResult {
 export interface ApiResponse<T = any> {
   /** Whether the operation was successful */
   success: boolean;
-  
+
   /** Response data */
   data?: T;
-  
+
   /** Error message if operation failed */
   message?: string;
-  
+
   /** Error code for programmatic handling */
   errorCode?: string;
-  
+
   /** Timestamp of the response */
   timestamp: Date;
 }
@@ -200,7 +207,7 @@ export interface ApiResponse<T = any> {
 export interface LoadingState {
   /** Whether any operation is currently loading */
   isLoading: boolean;
-  
+
   /** Specific loading states for different operations */
   operations?: {
     saving?: boolean;
@@ -208,7 +215,7 @@ export interface LoadingState {
     deleting?: boolean;
     updating?: boolean;
   };
-  
+
   /** Loading message to display */
   message?: string;
 }
@@ -219,16 +226,16 @@ export interface LoadingState {
 export interface ErrorState {
   /** Whether there's an active error */
   hasError: boolean;
-  
+
   /** Error message to display */
   message?: string;
-  
+
   /** Error details for debugging */
   details?: string;
-  
+
   /** Error type for different handling */
   type?: 'network' | 'validation' | 'storage' | 'unknown';
-  
+
   /** Whether the error is recoverable */
   isRecoverable?: boolean;
 }
@@ -285,19 +292,19 @@ export interface ThemeColors {
 export interface AppConfig {
   /** App version */
   version: string;
-  
+
   /** Build number */
   buildNumber: string;
-  
+
   /** Whether debug mode is enabled */
   debugMode: boolean;
-  
+
   /** Maximum number of tasks allowed */
   maxTasks: number;
-  
+
   /** Maximum file size for exports (in bytes) */
   maxExportSize: number;
-  
+
   /** Default task reminder time (in minutes) */
   defaultReminderTime: number;
 }
@@ -340,5 +347,241 @@ export function isValidTask(obj: any): obj is Task {
     isValidTaskStatus(obj.status) &&
     obj.createdAt instanceof Date &&
     (obj.location === undefined || typeof obj.location === 'string')
+  );
+}
+
+/**
+ * ============================================================================
+ * PROJECT TYPE DEFINITIONS
+ * ============================================================================
+ */
+
+// Project status enumeration
+export type ProjectStatus = 'active' | 'completed' | 'archived' | 'onHold';
+
+/**
+ * Main Project interface representing a project in the system
+ */
+export interface Project {
+  /** Unique identifier for the project */
+  id: string;
+
+  /** Project name - limited to 100 characters */
+  name: string;
+
+  /** Detailed description of the project - limited to 500 characters */
+  description: string;
+
+  /** Current status of the project */
+  status: ProjectStatus;
+
+  /** When the project was created */
+  createdAt: Date;
+
+  /** When the project was last updated */
+  updatedAt: Date;
+
+  /** Optional project color for visual identification */
+  color?: string;
+
+  /** Optional tags for categorization */
+  tags?: string[];
+
+  /** Optional completion date when status becomes 'completed' */
+  completedAt?: Date;
+
+  /** Optional number of tasks associated with this project */
+  taskCount?: number;
+}
+
+/**
+ * Interface for creating a new project
+ * Omits system-generated fields like id, createdAt, updatedAt
+ */
+export interface CreateProjectInput {
+  name: string;
+  description: string;
+  status?: ProjectStatus;
+  color?: string;
+  tags?: string[];
+}
+
+/**
+ * Interface for updating an existing project
+ * All fields are optional to allow partial updates
+ */
+export interface UpdateProjectInput {
+  name?: string;
+  description?: string;
+  status?: ProjectStatus;
+  color?: string;
+  tags?: string[];
+  completedAt?: Date;
+  taskCount?: number;
+}
+
+/**
+ * Sorting options for project lists
+ */
+export type ProjectSortOption = 'dateAdded' | 'name' | 'status' | 'updatedAt';
+
+/**
+ * Filter options for project lists
+ */
+export type ProjectFilterOption = 'all' | ProjectStatus;
+
+/**
+ * Interface for project list query parameters
+ */
+export interface ProjectQueryOptions {
+  /** Search term to filter projects by name or description */
+  searchTerm?: string;
+
+  /** Status filter */
+  statusFilter?: ProjectFilterOption;
+
+  /** Sort field */
+  sortBy?: ProjectSortOption;
+
+  /** Sort order */
+  sortOrder?: SortOrder;
+
+  /** Tag filter */
+  tagFilter?: string;
+}
+
+/**
+ * Interface for project statistics
+ */
+export interface ProjectStatistics {
+  /** Total number of projects */
+  total: number;
+
+  /** Number of active projects */
+  active: number;
+
+  /** Number of completed projects */
+  completed: number;
+
+  /** Number of archived projects */
+  archived: number;
+
+  /** Number of on-hold projects */
+  onHold: number;
+
+  /** Completion rate as percentage */
+  completionRate: number;
+}
+
+/**
+ * Type guard for checking if a value is a valid ProjectStatus
+ */
+export function isValidProjectStatus(value: any): value is ProjectStatus {
+  return ['active', 'completed', 'archived', 'onHold'].includes(value);
+}
+
+/**
+ * Type guard for checking if an object is a valid Project
+ */
+export function isValidProject(obj: any): obj is Project {
+  return (
+    obj &&
+    typeof obj === 'object' &&
+    typeof obj.id === 'string' &&
+    typeof obj.name === 'string' &&
+    typeof obj.description === 'string' &&
+    isValidProjectStatus(obj.status) &&
+    obj.createdAt instanceof Date &&
+    obj.updatedAt instanceof Date &&
+    (obj.color === undefined || typeof obj.color === 'string') &&
+    (obj.tags === undefined || Array.isArray(obj.tags))
+  );
+}
+
+// ============================================================================
+// EARNINGS TYPES
+// ============================================================================
+
+/**
+ * Status of daily earning relative to goal
+ */
+export type EarningStatus = 'met' | 'partial' | 'debt';
+
+/**
+ * Daily earning entry
+ */
+export interface DailyEarning {
+  /** Unique identifier */
+  id: string;
+
+  /** Date of the earning (normalized to start of day) */
+  date: Date;
+
+  /** Amount earned in Naira */
+  amount: number;
+
+  /** Daily goal amount (default: 28,000) */
+  goal: number;
+
+  /** Optional notes about the earning */
+  notes?: string;
+
+  /** When the entry was created */
+  createdAt: Date;
+
+  /** When the entry was last updated */
+  updatedAt: Date;
+}
+
+/**
+ * Statistics for earnings over a period
+ */
+export interface EarningStatistics {
+  /** Total amount earned */
+  totalEarned: number;
+
+  /** Total goal amount for the period */
+  totalGoal: number;
+
+  /** Total debt (missed days × goal) */
+  totalDebt: number;
+
+  /** Number of days with earnings recorded */
+  daysTracked: number;
+
+  /** Number of days without earnings */
+  daysMissed: number;
+
+  /** Average daily earnings */
+  averageDaily: number;
+
+  /** Best earning day amount */
+  bestDay: number;
+
+  /** Worst earning day amount (excluding debt days) */
+  worstDay: number;
+}
+
+/**
+ * Type guard to check if a value is a valid EarningStatus
+ */
+export function isValidEarningStatus(status: any): status is EarningStatus {
+  return status === 'met' || status === 'partial' || status === 'debt';
+}
+
+/**
+ * Type guard to validate DailyEarning object
+ */
+export function isValidDailyEarning(earning: any): earning is DailyEarning {
+  return (
+    earning &&
+    typeof earning === 'object' &&
+    typeof earning.id === 'string' &&
+    earning.date instanceof Date &&
+    typeof earning.amount === 'number' &&
+    typeof earning.goal === 'number' &&
+    earning.createdAt instanceof Date &&
+    earning.updatedAt instanceof Date &&
+    (earning.notes === undefined || typeof earning.notes === 'string')
   );
 }

@@ -14,25 +14,25 @@
  * - Proper navigation with expo-router
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  StatusBar,
-  RefreshControl,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { StorageService, StorageError } from '@/services/storage-service';
-import { Task, TaskSortOption, TaskFilterOption, ErrorState, LoadingState } from '@/types/task-types';
+import { StorageError, StorageService } from '@/services/storage-service';
+import { ErrorState, LoadingState, Project, Task } from '@/types/task-types';
+import { Ionicons } from '@expo/vector-icons';
+import { router, useFocusEffect } from 'expo-router';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  Alert,
+  FlatList,
+  RefreshControl,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Define sort and filter options for the UI
 type SortOption = 'dateAdded' | 'status' | 'dueDate';
@@ -45,6 +45,7 @@ export default function TasksScreen() {
 
   // Component state management
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOption, setSortOption] = useState<SortOption>('dateAdded');
   const [filterOption, setFilterOption] = useState<FilterOption>('all');
@@ -70,6 +71,7 @@ export default function TasksScreen() {
   useFocusEffect(
     useCallback(() => {
       loadTasks();
+      loadProjects();
     }, [])
   );
 
@@ -79,13 +81,13 @@ export default function TasksScreen() {
   const checkOnboardingStatus = async () => {
     try {
       const hasCompletedOnboarding = await StorageService.getOnboardingCompleted();
-      
+
       if (!hasCompletedOnboarding) {
         // User hasn't completed onboarding, redirect them
         router.replace('/onboarding');
         return;
       }
-      
+
       // User has completed onboarding, load their tasks
       loadTasks();
     } catch (error) {
@@ -112,10 +114,10 @@ export default function TasksScreen() {
       setLoadingState({ isLoading: false });
     } catch (error) {
       console.error('Error loading tasks:', error);
-      
+
       let errorMessage = 'Failed to load tasks. Please try again.';
       let isRecoverable = true;
-      
+
       if (error instanceof StorageError) {
         switch (error.type) {
           case 'PERMISSION_DENIED':
@@ -141,9 +143,53 @@ export default function TasksScreen() {
         isRecoverable,
         type: 'storage',
       });
-      
+
       setLoadingState({ isLoading: false });
     }
+  };
+
+  /**
+   * Loads all projects from storage
+   */
+  const loadProjects = async () => {
+    try {
+      const loadedProjects = await StorageService.getProjects();
+      setProjects(loadedProjects);
+    } catch (error) {
+      console.error('Error loading projects:', error);
+      // Don't show error for projects - non-critical
+    }
+  };
+
+  /**
+   * Toggles the checkbox state of a task
+   */
+  const toggleTaskCheckbox = async (taskId: string, currentChecked: boolean) => {
+    try {
+      await StorageService.updateTask(taskId, {
+        isChecked: !currentChecked
+      });
+
+      // Refresh task list
+      await loadTasks();
+    } catch (error) {
+      console.error('Error toggling task checkbox:', error);
+
+      Alert.alert(
+        'Update Failed',
+        error instanceof StorageError ? error.message : 'Failed to update task. Please try again.',
+        [{ text: 'OK', style: 'default' }]
+      );
+    }
+  };
+
+  /**
+   * Gets project name by ID
+   */
+  const getProjectName = (projectId?: string): string | null => {
+    if (!projectId) return null;
+    const project = projects.find(p => p.id === projectId);
+    return project ? project.name : null;
   };
 
   /**
@@ -156,7 +202,7 @@ export default function TasksScreen() {
         operations: { updating: true },
       });
 
-      await StorageService.updateTask(taskId, { 
+      await StorageService.updateTask(taskId, {
         status: newStatus,
         ...(newStatus === 'completed' && { completedAt: new Date() })
       });
@@ -165,7 +211,7 @@ export default function TasksScreen() {
       await loadTasks();
     } catch (error) {
       console.error('Error updating task status:', error);
-      
+
       Alert.alert(
         'Update Failed',
         error instanceof StorageError ? error.message : 'Failed to update task status. Please try again.',
@@ -196,12 +242,12 @@ export default function TasksScreen() {
               });
 
               await StorageService.deleteTask(taskId);
-              
+
               // Refresh task list
               await loadTasks();
             } catch (error) {
               console.error('Error deleting task:', error);
-              
+
               Alert.alert(
                 'Delete Failed',
                 error instanceof StorageError ? error.message : 'Failed to delete task. Please try again.',
@@ -259,10 +305,10 @@ export default function TasksScreen() {
         task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         task.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (task.location && task.location.toLowerCase().includes(searchQuery.toLowerCase()));
-      
+
       // Apply status filter
       const matchesFilter = filterOption === 'all' || task.status === filterOption;
-      
+
       return matchesSearch && matchesFilter;
     });
 
@@ -311,84 +357,127 @@ export default function TasksScreen() {
   /**
    * Renders individual task item
    */
-  const renderTaskItem = ({ item: task }: { item: Task }) => (
-    <TouchableOpacity
-      style={[styles.taskCard, { 
-        backgroundColor: colors.cardBackground, 
-        borderColor: colors.border 
-      }]}
-      onPress={() => {
-        // For now, we'll just show task details in an alert
-        // In a full app, this would navigate to a task details screen
-        Alert.alert(
-          task.title,
-          `${task.description}\n\nDue: ${formatDate(task.dateTime)}${
-            task.location ? `\nLocation: ${task.location}` : ''
-          }\nStatus: ${task.status}\nCreated: ${formatDate(task.createdAt)}`,
-          [{ text: 'OK', style: 'default' }]
-        );
-      }}
-      accessibilityLabel={`Task: ${task.title}, Status: ${task.status}`}
-    >
-      <View style={styles.taskHeader}>
-        <View style={styles.taskInfo}>
-          <Text style={[styles.taskTitle, { color: colors.text }]} numberOfLines={1}>
-            {task.title}
-          </Text>
-          <View style={styles.statusContainer}>
-            <Ionicons 
-              name={getStatusIcon(task.status)} 
-              size={16} 
-              color={getStatusColor(task.status)} 
+  const renderTaskItem = ({ item: task }: { item: Task }) => {
+    const projectName = getProjectName(task.projectId);
+
+    return (
+      <View style={[styles.taskCard, {
+        backgroundColor: colors.cardBackground,
+        borderColor: colors.border
+      }]}>
+        <View style={styles.taskHeader}>
+          {/* Checkbox */}
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation();
+              toggleTaskCheckbox(task.id, task.isChecked);
+            }}
+            style={styles.checkbox}
+            accessibilityLabel={task.isChecked ? "Uncheck task" : "Check task"}
+          >
+            <Ionicons
+              name={task.isChecked ? "checkbox" : "square-outline"}
+              size={24}
+              color={task.isChecked ? colors.completed : colors.placeholder}
             />
-            <Text style={[styles.statusText, { color: getStatusColor(task.status) }]}>
-              {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.taskInfo}
+            onPress={() => {
+              Alert.alert(
+                task.title,
+                `${task.description}\n\nDue: ${formatDate(task.dateTime)}${task.location ? `\nLocation: ${task.location}` : ''
+                }\nStatus: ${task.status}\nCreated: ${formatDate(task.createdAt)}${projectName ? `\nProject: ${projectName}` : ''
+                }`,
+                [{ text: 'OK', style: 'default' }]
+              );
+            }}
+          >
+            <Text
+              style={[
+                styles.taskTitle,
+                { color: colors.text },
+                task.isChecked && styles.taskTitleChecked
+              ]}
+              numberOfLines={1}
+            >
+              {task.title}
             </Text>
+
+            <View style={styles.taskMetaRow}>
+              <View style={styles.statusContainer}>
+                <Ionicons
+                  name={getStatusIcon(task.status)}
+                  size={16}
+                  color={getStatusColor(task.status)}
+                />
+                <Text style={[styles.statusText, { color: getStatusColor(task.status) }]}>
+                  {task.status.charAt(0).toUpperCase() + task.status.slice(1)}
+                </Text>
+              </View>
+
+              {projectName && (
+                <View style={[styles.projectBadge, { backgroundColor: colors.primary + '20' }]}>
+                  <Ionicons name="briefcase-outline" size={12} color={colors.primary} />
+                  <Text style={[styles.projectBadgeText, { color: colors.primary }]} numberOfLines={1}>
+                    {projectName}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+
+          <View style={styles.taskActions}>
+            <TouchableOpacity
+              onPress={() => updateTaskStatus(task.id, getNextStatus(task.status))}
+              style={styles.actionButton}
+              accessibilityLabel={`Mark as ${getNextStatus(task.status)}`}
+            >
+              <Ionicons name="refresh" size={20} color={colors.primary} />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => deleteTask(task.id, task.title)}
+              style={styles.actionButton}
+              accessibilityLabel="Delete task"
+            >
+              <Ionicons name="trash-outline" size={20} color={colors.error} />
+            </TouchableOpacity>
           </View>
         </View>
-        
-        <View style={styles.taskActions}>
-          <TouchableOpacity
-            onPress={() => updateTaskStatus(task.id, getNextStatus(task.status))}
-            style={styles.actionButton}
-            accessibilityLabel={`Mark as ${getNextStatus(task.status)}`}
-          >
-            <Ionicons name="refresh" size={20} color={colors.primary} />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            onPress={() => deleteTask(task.id, task.title)}
-            style={styles.actionButton}
-            accessibilityLabel="Delete task"
-          >
-            <Ionicons name="trash-outline" size={20} color={colors.error} />
-          </TouchableOpacity>
-        </View>
-      </View>
 
-      <Text style={[styles.taskDescription, { color: colors.placeholder }]} numberOfLines={2}>
-        {task.description}
-      </Text>
+        <Text
+          style={[
+            styles.taskDescription,
+            { color: colors.placeholder },
+            task.isChecked && styles.taskDescriptionChecked
+          ]}
+          numberOfLines={2}
+        >
+          {task.description}
+        </Text>
 
-      <View style={styles.taskMeta}>
-        <View style={styles.metaItem}>
-          <Ionicons name="time-outline" size={14} color={colors.placeholder} />
-          <Text style={[styles.metaText, { color: colors.placeholder }]}>
-            {formatDate(task.dateTime)}
-          </Text>
-        </View>
-        
-        {task.location && (
+        <View style={styles.taskMeta}>
           <View style={styles.metaItem}>
-            <Ionicons name="location-outline" size={14} color={colors.placeholder} />
-            <Text style={[styles.metaText, { color: colors.placeholder }]} numberOfLines={1}>
-              {task.location}
+            <Ionicons name="time-outline" size={14} color={colors.placeholder} />
+            <Text style={[styles.metaText, { color: colors.placeholder }]}>
+              {formatDate(task.dateTime)}
             </Text>
           </View>
-        )}
+
+          {task.location && (
+            <View style={styles.metaItem}>
+              <Ionicons name="location-outline" size={14} color={colors.placeholder} />
+              <Text style={[styles.metaText, { color: colors.placeholder }]} numberOfLines={1}>
+                {task.location}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   // Show error state if there's an unrecoverable error
   if (errorState.hasError && !errorState.isRecoverable) {
@@ -398,14 +487,14 @@ export default function TasksScreen() {
           barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
           backgroundColor={colors.background}
         />
-        
+
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color={colors.error} />
           <Text style={[styles.errorTitle, { color: colors.text }]}>Something went wrong</Text>
           <Text style={[styles.errorMessage, { color: colors.placeholder }]}>
             {errorState.message}
           </Text>
-          
+
           <TouchableOpacity
             style={[styles.retryButton, { backgroundColor: colors.primary }]}
             onPress={() => {
@@ -428,7 +517,7 @@ export default function TasksScreen() {
         barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
-      
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: colors.text }]}>My Tasks</Text>
@@ -443,9 +532,9 @@ export default function TasksScreen() {
 
       {/* Search and Filter */}
       <View style={styles.searchContainer}>
-        <View style={[styles.searchInput, { 
-          backgroundColor: colors.cardBackground, 
-          borderColor: colors.border 
+        <View style={[styles.searchInput, {
+          backgroundColor: colors.cardBackground,
+          borderColor: colors.border
         }]}>
           <Ionicons name="search" size={20} color={colors.placeholder} />
           <TextInput
@@ -456,11 +545,11 @@ export default function TasksScreen() {
             onChangeText={setSearchQuery}
           />
         </View>
-        
+
         <TouchableOpacity
-          style={[styles.filterButton, { 
-            backgroundColor: colors.cardBackground, 
-            borderColor: colors.border 
+          style={[styles.filterButton, {
+            backgroundColor: colors.cardBackground,
+            borderColor: colors.border
           }]}
           onPress={() => setShowSortFilter(!showSortFilter)}
           accessibilityLabel="Toggle sort and filter options"
@@ -471,9 +560,9 @@ export default function TasksScreen() {
 
       {/* Sort/Filter Options */}
       {showSortFilter && (
-        <View style={[styles.sortFilterContainer, { 
-          backgroundColor: colors.cardBackground, 
-          borderColor: colors.border 
+        <View style={[styles.sortFilterContainer, {
+          backgroundColor: colors.cardBackground,
+          borderColor: colors.border
         }]}>
           <View style={styles.sortFilterSection}>
             <Text style={[styles.sortFilterTitle, { color: colors.text }]}>Sort by:</Text>
@@ -483,7 +572,7 @@ export default function TasksScreen() {
                   key={option}
                   style={[
                     styles.optionButton,
-                    { 
+                    {
                       backgroundColor: sortOption === option ? colors.primary : 'transparent',
                       borderColor: colors.border
                     }
@@ -494,8 +583,8 @@ export default function TasksScreen() {
                     styles.optionText,
                     { color: sortOption === option ? 'white' : colors.text }
                   ]}>
-                    {option === 'dateAdded' ? 'Date Added' : 
-                     option === 'dueDate' ? 'Due Date' : 'Status'}
+                    {option === 'dateAdded' ? 'Date Added' :
+                      option === 'dueDate' ? 'Due Date' : 'Status'}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -510,7 +599,7 @@ export default function TasksScreen() {
                   key={option}
                   style={[
                     styles.optionButton,
-                    { 
+                    {
                       backgroundColor: filterOption === option ? colors.primary : 'transparent',
                       borderColor: colors.border
                     }
@@ -556,20 +645,20 @@ export default function TasksScreen() {
         }
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Ionicons 
-              name={tasks.length === 0 ? "add-circle-outline" : "search-outline"} 
-              size={64} 
-              color={colors.placeholder} 
+            <Ionicons
+              name={tasks.length === 0 ? "add-circle-outline" : "search-outline"}
+              size={64}
+              color={colors.placeholder}
             />
             <Text style={[styles.emptyTitle, { color: colors.text }]}>
               {tasks.length === 0 ? "No tasks yet" : "No matching tasks"}
             </Text>
             <Text style={[styles.emptyDescription, { color: colors.placeholder }]}>
-              {tasks.length === 0 
-                ? "Create your first task to get started!" 
+              {tasks.length === 0
+                ? "Create your first task to get started!"
                 : "Try adjusting your search or filters."}
             </Text>
-            
+
             {tasks.length === 0 && (
               <TouchableOpacity
                 style={[styles.emptyActionButton, { backgroundColor: colors.primary }]}
@@ -822,5 +911,37 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+  },
+  checkbox: {
+    padding: 4,
+    marginRight: 12,
+  },
+  taskMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+    marginTop: 4,
+  },
+  projectBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    gap: 4,
+    maxWidth: 150,
+  },
+  projectBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  taskTitleChecked: {
+    textDecorationLine: 'line-through',
+    opacity: 0.6,
+  },
+  taskDescriptionChecked: {
+    textDecorationLine: 'line-through',
+    opacity: 0.5,
   },
 });

@@ -39,8 +39,12 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
+    "updates": {
+      "url": "https://u.expo.dev/9892b953-1376-423a-b549-3c4a4e42b7c7"
+    },
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

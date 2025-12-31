@@ -16,14 +16,16 @@
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { StorageError, StorageService } from '@/services/storage-service';
-import { Project, ProjectStatus } from '@/types/task-types';
+import { Project, ProjectCollection, ProjectStatus } from '@/types/task-types';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useState } from 'react';
 import {
     Alert,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -37,12 +39,17 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 type FilterOption = 'all' | ProjectStatus;
 
+interface ProjectWithBalance extends Project {
+    remainingBalance?: number;
+}
+
 export default function ProjectsScreen() {
     const colorScheme = useColorScheme();
     const colors = Colors[colorScheme ?? 'light'];
 
     // State management
-    const [projects, setProjects] = useState<Project[]>([]);
+    const [projects, setProjects] = useState<ProjectWithBalance[]>([]);
+    const [collections, setCollections] = useState<ProjectCollection[]>([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [filterOption, setFilterOption] = useState<FilterOption>('all');
     const [showFilter, setShowFilter] = useState(false);
@@ -58,6 +65,8 @@ export default function ProjectsScreen() {
     const [formName, setFormName] = useState('');
     const [formDescription, setFormDescription] = useState('');
     const [formStatus, setFormStatus] = useState<ProjectStatus>('active');
+    const [formPrice, setFormPrice] = useState('');
+    const [appendPrice, setAppendPrice] = useState('');
 
     /**
      * Load projects when screen comes into focus
@@ -74,8 +83,22 @@ export default function ProjectsScreen() {
     const loadProjects = async () => {
         try {
             setIsLoading(true);
-            const loadedProjects = await StorageService.getProjects();
-            setProjects(loadedProjects);
+            const [loadedProjects, loadedCollections] = await Promise.all([
+                StorageService.getProjects(),
+                StorageService.getProjectCollections(),
+            ]);
+
+            const projectsWithBalance: ProjectWithBalance[] = loadedProjects.map(project => {
+                const projectCollections = loadedCollections.filter(c => c.projectId === project.id);
+                const collectedForProject = projectCollections.reduce((sum, c) => sum + c.amount, 0);
+                return {
+                    ...project,
+                    remainingBalance: (project.totalPrice || 0) - collectedForProject
+                };
+            });
+
+            setProjects(projectsWithBalance);
+            setCollections(loadedCollections);
         } catch (error) {
             console.error('Error loading projects:', error);
             Alert.alert(
@@ -103,7 +126,15 @@ export default function ProjectsScreen() {
         setFormName('');
         setFormDescription('');
         setFormStatus('active');
+        setFormPrice('');
         setShowAddModal(true);
+    };
+
+    /**
+     * Helper to safely parse price strings
+     */
+    const parsePrice = (val: string) => {
+        return parseFloat(val.replace(/,/g, '')) || 0;
     };
 
     /**
@@ -124,6 +155,7 @@ export default function ProjectsScreen() {
                 createdAt: new Date(),
                 updatedAt: new Date(),
                 taskCount: 0,
+                totalPrice: parsePrice(formPrice),
             };
 
             await StorageService.addProject(newProject);
@@ -147,6 +179,8 @@ export default function ProjectsScreen() {
         setFormName(project.name);
         setFormDescription(project.description);
         setFormStatus(project.status);
+        setFormPrice(project.totalPrice?.toString() || '');
+        setAppendPrice('');
         setShowEditModal(true);
     };
 
@@ -166,6 +200,7 @@ export default function ProjectsScreen() {
                 name: formName.trim(),
                 description: formDescription.trim(),
                 status: formStatus,
+                totalPrice: parsePrice(formPrice),
                 ...(formStatus === 'completed' && { completedAt: new Date() }),
             });
 
@@ -241,7 +276,7 @@ export default function ProjectsScreen() {
     /**
      * Filters and sorts projects
      */
-    const getFilteredProjects = (): Project[] => {
+    const getFilteredProjects = (): ProjectWithBalance[] => {
         return projects.filter(project => {
             const matchesSearch = searchQuery.trim() === '' ||
                 project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -267,7 +302,7 @@ export default function ProjectsScreen() {
     /**
      * Renders individual project item
      */
-    const renderProjectItem = ({ item: project }: { item: Project }) => (
+    const renderProjectItem = ({ item: project }: { item: ProjectWithBalance }) => (
         <View style={[styles.projectCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <View style={styles.projectHeader}>
                 <View style={styles.projectInfo}>
@@ -280,6 +315,16 @@ export default function ProjectsScreen() {
                             {project.status.charAt(0).toUpperCase() + project.status.slice(1)}
                         </Text>
                     </View>
+                </View>
+
+                <View style={styles.priceContainer}>
+                    <Text style={[styles.priceLabel, { color: colors.placeholder }]}>Total Price</Text>
+                    <Text style={[styles.priceAmount, { color: colors.text }]}>₦{(project.totalPrice || 0).toLocaleString()}</Text>
+
+                    <Text style={[styles.priceLabel, { color: colors.placeholder, marginTop: 4 }]}>Remaining</Text>
+                    <Text style={[styles.priceAmount, { color: (project.remainingBalance || 0) > 0 ? colors.warning : colors.completed }]}>
+                        ₦{(project.remainingBalance || 0).toLocaleString()}
+                    </Text>
                 </View>
 
                 <View style={styles.projectActions}>
@@ -335,82 +380,122 @@ export default function ProjectsScreen() {
             transparent={true}
             onRequestClose={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}
         >
-            <View style={styles.modalOverlay}>
-                <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-                    <View style={styles.modalHeader}>
-                        <Text style={[styles.modalTitle, { color: colors.text }]}>
-                            {isEdit ? 'Edit Project' : 'New Project'}
-                        </Text>
-                        <TouchableOpacity onPress={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}>
-                            <Ionicons name="close" size={24} color={colors.text} />
-                        </TouchableOpacity>
-                    </View>
-
-                    <ScrollView style={styles.modalBody}>
-                        <Text style={[styles.label, { color: colors.text }]}>Project Name *</Text>
-                        <TextInput
-                            style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-                            placeholder="Enter project name"
-                            placeholderTextColor={colors.placeholder}
-                            value={formName}
-                            onChangeText={setFormName}
-                            maxLength={100}
-                        />
-
-                        <Text style={[styles.label, { color: colors.text }]}>Description</Text>
-                        <TextInput
-                            style={[styles.textArea, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-                            placeholder="Enter project description"
-                            placeholderTextColor={colors.placeholder}
-                            value={formDescription}
-                            onChangeText={setFormDescription}
-                            multiline
-                            numberOfLines={4}
-                            maxLength={500}
-                        />
-
-                        <Text style={[styles.label, { color: colors.text }]}>Status</Text>
-                        <View style={styles.statusOptions}>
-                            {(['active', 'completed', 'archived', 'onHold'] as ProjectStatus[]).map((status) => (
-                                <TouchableOpacity
-                                    key={status}
-                                    style={[
-                                        styles.statusOption,
-                                        {
-                                            backgroundColor: formStatus === status ? getStatusColor(status) : colors.cardBackground,
-                                            borderColor: getStatusColor(status)
-                                        }
-                                    ]}
-                                    onPress={() => setFormStatus(status)}
-                                >
-                                    <Text style={[
-                                        styles.statusOptionText,
-                                        { color: formStatus === status ? 'white' : colors.text }
-                                    ]}>
-                                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: colors.text }]}>
+                                {isEdit ? 'Edit Project' : 'New Project'}
+                            </Text>
+                            <TouchableOpacity onPress={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}>
+                                <Ionicons name="close" size={24} color={colors.text} />
+                            </TouchableOpacity>
                         </View>
-                    </ScrollView>
 
-                    <View style={styles.modalFooter}>
-                        <TouchableOpacity
-                            style={[styles.cancelButton, { borderColor: colors.border }]}
-                            onPress={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}
-                        >
-                            <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-                        </TouchableOpacity>
+                        <ScrollView style={styles.modalBody}>
+                            <Text style={[styles.label, { color: colors.text }]}>Project Name *</Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                placeholder="Enter project name"
+                                placeholderTextColor={colors.placeholder}
+                                value={formName}
+                                onChangeText={setFormName}
+                                maxLength={100}
+                            />
 
-                        <TouchableOpacity
-                            style={[styles.saveButton, { backgroundColor: colors.primary }]}
-                            onPress={isEdit ? saveEditedProject : saveNewProject}
-                        >
-                            <Text style={styles.saveButtonText}>{isEdit ? 'Update' : 'Create'}</Text>
-                        </TouchableOpacity>
+                            <Text style={[styles.label, { color: colors.text }]}>Description</Text>
+                            <TextInput
+                                style={[styles.textArea, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                placeholder="Enter project description"
+                                placeholderTextColor={colors.placeholder}
+                                value={formDescription}
+                                onChangeText={setFormDescription}
+                                multiline
+                                numberOfLines={4}
+                                maxLength={500}
+                            />
+
+                            <Text style={[styles.label, { color: colors.text }]}>Total Price (₦)</Text>
+                            <TextInput
+                                style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                placeholder="e.g. 100000"
+                                placeholderTextColor={colors.placeholder}
+                                value={formPrice}
+                                onChangeText={setFormPrice}
+                                keyboardType="numeric"
+                            />
+
+                            {isEdit && (
+                                <View style={[styles.appendRow, { marginTop: 8 }]}>
+                                    <TextInput
+                                        style={[styles.input, { flex: 1, backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                        placeholder="Add to current price (e.g. 20000)"
+                                        placeholderTextColor={colors.placeholder}
+                                        value={appendPrice}
+                                        onChangeText={setAppendPrice}
+                                        keyboardType="numeric"
+                                    />
+                                    <TouchableOpacity
+                                        style={[styles.smallAddButton, { backgroundColor: colors.primary }]}
+                                        onPress={() => {
+                                            const current = parsePrice(formPrice);
+                                            const extra = parsePrice(appendPrice);
+                                            setFormPrice((current + extra).toString());
+                                            setAppendPrice('');
+                                        }}
+                                    >
+                                        <Ionicons name="add" size={20} color="white" />
+                                        <Text style={styles.smallAddButtonText}>Add</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+
+                            <Text style={[styles.label, { color: colors.text }]}>Status</Text>
+                            <View style={styles.statusOptions}>
+                                {(['active', 'completed', 'archived', 'onHold'] as ProjectStatus[]).map((status) => (
+                                    <TouchableOpacity
+                                        key={status}
+                                        style={[
+                                            styles.statusOption,
+                                            {
+                                                backgroundColor: formStatus === status ? getStatusColor(status) : colors.cardBackground,
+                                                borderColor: getStatusColor(status)
+                                            }
+                                        ]}
+                                        onPress={() => setFormStatus(status)}
+                                    >
+                                        <Text style={[
+                                            styles.statusOptionText,
+                                            { color: formStatus === status ? 'white' : colors.text }
+                                        ]}>
+                                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </ScrollView>
+
+                        <View style={styles.modalFooter}>
+                            <TouchableOpacity
+                                style={[styles.cancelButton, { borderColor: colors.border }]}
+                                onPress={() => isEdit ? setShowEditModal(false) : setShowAddModal(false)}
+                            >
+                                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={[styles.saveButton, { backgroundColor: colors.primary }]}
+                                onPress={isEdit ? saveEditedProject : saveNewProject}
+                            >
+                                <Text style={styles.saveButtonText}>{isEdit ? 'Update' : 'Create'}</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
-            </View>
+            </KeyboardAvoidingView>
         </Modal>
     );
 
@@ -426,12 +511,20 @@ export default function ProjectsScreen() {
             {/* Header */}
             <View style={styles.header}>
                 <Text style={[styles.headerTitle, { color: colors.text }]}>My Projects</Text>
-                <TouchableOpacity
-                    style={[styles.addButton, { backgroundColor: colors.primary }]}
-                    onPress={handleAddProject}
-                >
-                    <Ionicons name="add" size={24} color="white" />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 12 }}>
+                    <TouchableOpacity
+                        style={[styles.addButton, { backgroundColor: colors.warning }]}
+                        onPress={() => router.push('/(tabs)/project-ideas')}
+                    >
+                        <Ionicons name="bulb-outline" size={24} color="white" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.addButton, { backgroundColor: colors.primary }]}
+                        onPress={handleAddProject}
+                    >
+                        <Ionicons name="add" size={24} color="white" />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Search and Filter */}
@@ -831,5 +924,36 @@ const styles = StyleSheet.create({
     viewTasksText: {
         fontSize: 14,
         fontWeight: '600',
+    },
+    priceContainer: {
+        alignItems: 'flex-end',
+        marginRight: 12,
+    },
+    priceLabel: {
+        fontSize: 10,
+        textTransform: 'uppercase',
+        marginBottom: 2,
+    },
+    priceAmount: {
+        fontSize: 14,
+        fontWeight: 'bold',
+    },
+    appendRow: {
+        flexDirection: 'row',
+        gap: 8,
+        alignItems: 'center',
+    },
+    smallAddButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+        gap: 4,
+    },
+    smallAddButtonText: {
+        color: 'white',
+        fontWeight: '600',
+        fontSize: 12,
     },
 });

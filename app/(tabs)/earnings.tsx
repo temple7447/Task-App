@@ -21,7 +21,9 @@ import React, { useCallback, useState } from 'react';
 import {
     Alert,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -515,59 +517,64 @@ export default function EarningsScreen() {
                 transparent={true}
                 onRequestClose={() => setShowAddModal(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: colors.text }]}>Add Earning</Text>
-                            <TouchableOpacity onPress={() => setShowAddModal(false)}>
-                                <Ionicons name="close" size={24} color={colors.text} />
-                            </TouchableOpacity>
-                        </View>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+                            <View style={styles.modalHeader}>
+                                <Text style={[styles.modalTitle, { color: colors.text }]}>Add Earning</Text>
+                                <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                                    <Ionicons name="close" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
 
-                        <ScrollView style={styles.modalBody}>
-                            <Text style={[styles.label, { color: colors.text }]}>Amount (₦) *</Text>
-                            <TextInput
-                                style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-                                placeholder="28000"
-                                placeholderTextColor={colors.placeholder}
-                                value={amount}
-                                onChangeText={setAmount}
-                                keyboardType="numeric"
-                            />
+                            <ScrollView style={styles.modalBody}>
+                                <Text style={[styles.label, { color: colors.text }]}>Amount (₦) *</Text>
+                                <TextInput
+                                    style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                    placeholder="28000"
+                                    placeholderTextColor={colors.placeholder}
+                                    value={amount}
+                                    onChangeText={setAmount}
+                                    keyboardType="numeric"
+                                />
 
-                            <Text style={[styles.label, { color: colors.text }]}>Notes</Text>
-                            <TextInput
-                                style={[styles.textArea, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-                                placeholder="Optional notes..."
-                                placeholderTextColor={colors.placeholder}
-                                value={notes}
-                                onChangeText={setNotes}
-                                multiline
-                                numberOfLines={3}
-                            />
+                                <Text style={[styles.label, { color: colors.text }]}>Notes</Text>
+                                <TextInput
+                                    style={[styles.textArea, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                    placeholder="Optional notes..."
+                                    placeholderTextColor={colors.placeholder}
+                                    value={notes}
+                                    onChangeText={setNotes}
+                                    multiline
+                                    numberOfLines={3}
+                                />
 
-                            <Text style={[styles.infoText, { color: colors.placeholder }]}>
-                                Daily Goal: {formatCurrency(DAILY_GOAL)}
-                            </Text>
-                        </ScrollView>
+                                <Text style={[styles.infoText, { color: colors.placeholder }]}>
+                                    Daily Goal: {formatCurrency(DAILY_GOAL)}
+                                </Text>
+                            </ScrollView>
 
-                        <View style={styles.modalFooter}>
-                            <TouchableOpacity
-                                style={[styles.cancelButton, { borderColor: colors.border }]}
-                                onPress={() => setShowAddModal(false)}
-                            >
-                                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-                            </TouchableOpacity>
+                            <View style={styles.modalFooter}>
+                                <TouchableOpacity
+                                    style={[styles.cancelButton, { borderColor: colors.border }]}
+                                    onPress={() => setShowAddModal(false)}
+                                >
+                                    <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[styles.saveButton, { backgroundColor: colors.primary }]}
-                                onPress={addEarning}
-                            >
-                                <Text style={styles.saveButtonText}>Add Entry</Text>
-                            </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.saveButton, { backgroundColor: colors.primary }]}
+                                    onPress={addEarning}
+                                >
+                                    <Text style={styles.saveButtonText}>Add Entry</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </SafeAreaView>
     );

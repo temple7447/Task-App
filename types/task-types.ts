@@ -258,12 +258,7 @@ export interface NavigationParams {
 }
 
 /**
- * Theme type for consistent theming
- */
-export type ThemeMode = 'light' | 'dark' | 'system';
-
-/**
- * Interface for theme colors
+ * Theme colors interface
  */
 export interface ThemeColors {
   text: string;
@@ -284,70 +279,6 @@ export interface ThemeColors {
   inProgress: string;
   completed: string;
   cancelled: string;
-}
-
-/**
- * Interface for app configuration
- */
-export interface AppConfig {
-  /** App version */
-  version: string;
-
-  /** Build number */
-  buildNumber: string;
-
-  /** Whether debug mode is enabled */
-  debugMode: boolean;
-
-  /** Maximum number of tasks allowed */
-  maxTasks: number;
-
-  /** Maximum file size for exports (in bytes) */
-  maxExportSize: number;
-
-  /** Default task reminder time (in minutes) */
-  defaultReminderTime: number;
-}
-
-/**
- * Utility type for making specific properties optional
- */
-export type PartialBy<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
-
-/**
- * Utility type for making specific properties required
- */
-export type RequiredBy<T, K extends keyof T> = T & Required<Pick<T, K>>;
-
-/**
- * Type guard for checking if a value is a valid TaskStatus
- */
-export function isValidTaskStatus(value: any): value is TaskStatus {
-  return ['pending', 'inProgress', 'completed', 'cancelled'].includes(value);
-}
-
-/**
- * Type guard for checking if a value is a valid TaskPriority
- */
-export function isValidTaskPriority(value: any): value is TaskPriority {
-  return ['low', 'medium', 'high', 'urgent'].includes(value);
-}
-
-/**
- * Type guard for checking if an object is a valid Task
- */
-export function isValidTask(obj: any): obj is Task {
-  return (
-    obj &&
-    typeof obj === 'object' &&
-    typeof obj.id === 'string' &&
-    typeof obj.title === 'string' &&
-    typeof obj.description === 'string' &&
-    obj.dateTime instanceof Date &&
-    isValidTaskStatus(obj.status) &&
-    obj.createdAt instanceof Date &&
-    (obj.location === undefined || typeof obj.location === 'string')
-  );
 }
 
 /**
@@ -392,11 +323,13 @@ export interface Project {
 
   /** Optional number of tasks associated with this project */
   taskCount?: number;
+
+  /** Total price for the project (budget) */
+  totalPrice?: number;
 }
 
 /**
  * Interface for creating a new project
- * Omits system-generated fields like id, createdAt, updatedAt
  */
 export interface CreateProjectInput {
   name: string;
@@ -404,11 +337,11 @@ export interface CreateProjectInput {
   status?: ProjectStatus;
   color?: string;
   tags?: string[];
+  totalPrice?: number;
 }
 
 /**
  * Interface for updating an existing project
- * All fields are optional to allow partial updates
  */
 export interface UpdateProjectInput {
   name?: string;
@@ -418,84 +351,39 @@ export interface UpdateProjectInput {
   tags?: string[];
   completedAt?: Date;
   taskCount?: number;
+  totalPrice?: number;
 }
 
 /**
- * Sorting options for project lists
+ * ============================================================================
+ * PROJECT COLLECTIONS & IDEAS
+ * ============================================================================
  */
-export type ProjectSortOption = 'dateAdded' | 'name' | 'status' | 'updatedAt';
 
 /**
- * Filter options for project lists
+ * Record of money collected on a project
  */
-export type ProjectFilterOption = 'all' | ProjectStatus;
-
-/**
- * Interface for project list query parameters
- */
-export interface ProjectQueryOptions {
-  /** Search term to filter projects by name or description */
-  searchTerm?: string;
-
-  /** Status filter */
-  statusFilter?: ProjectFilterOption;
-
-  /** Sort field */
-  sortBy?: ProjectSortOption;
-
-  /** Sort order */
-  sortOrder?: SortOrder;
-
-  /** Tag filter */
-  tagFilter?: string;
+export interface ProjectCollection {
+  id: string;
+  projectId: string;
+  projectName: string;
+  amount: number;
+  date: Date;
+  notes?: string;
+  createdAt: Date;
 }
 
 /**
- * Interface for project statistics
+ * Project idea for future consideration
  */
-export interface ProjectStatistics {
-  /** Total number of projects */
-  total: number;
-
-  /** Number of active projects */
-  active: number;
-
-  /** Number of completed projects */
-  completed: number;
-
-  /** Number of archived projects */
-  archived: number;
-
-  /** Number of on-hold projects */
-  onHold: number;
-
-  /** Completion rate as percentage */
-  completionRate: number;
-}
-
-/**
- * Type guard for checking if a value is a valid ProjectStatus
- */
-export function isValidProjectStatus(value: any): value is ProjectStatus {
-  return ['active', 'completed', 'archived', 'onHold'].includes(value);
-}
-
-/**
- * Type guard for checking if an object is a valid Project
- */
-export function isValidProject(obj: any): obj is Project {
-  return (
-    obj &&
-    typeof obj === 'object' &&
-    typeof obj.id === 'string' &&
-    typeof obj.name === 'string' &&
-    typeof obj.description === 'string' &&
-    isValidProjectStatus(obj.status) &&
-    obj.createdAt instanceof Date &&
-    obj.updatedAt instanceof Date &&
-    (obj.color === undefined || typeof obj.color === 'string') &&
-    (obj.tags === undefined || Array.isArray(obj.tags))
-  );
+export interface ProjectIdea {
+  id: string;
+  title: string;
+  description: string;
+  category?: string;
+  priority: TaskPriority;
+  isConverted: boolean;
+  createdAt: Date;
 }
 
 // ============================================================================
@@ -560,28 +448,4 @@ export interface EarningStatistics {
 
   /** Worst earning day amount (excluding debt days) */
   worstDay: number;
-}
-
-/**
- * Type guard to check if a value is a valid EarningStatus
- */
-export function isValidEarningStatus(status: any): status is EarningStatus {
-  return status === 'met' || status === 'partial' || status === 'debt';
-}
-
-/**
- * Type guard to validate DailyEarning object
- */
-export function isValidDailyEarning(earning: any): earning is DailyEarning {
-  return (
-    earning &&
-    typeof earning === 'object' &&
-    typeof earning.id === 'string' &&
-    earning.date instanceof Date &&
-    typeof earning.amount === 'number' &&
-    typeof earning.goal === 'number' &&
-    earning.createdAt instanceof Date &&
-    earning.updatedAt instanceof Date &&
-    (earning.notes === undefined || typeof earning.notes === 'string')
-  );
 }

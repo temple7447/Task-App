@@ -16,7 +16,9 @@ import React, { useCallback, useState } from 'react';
 import {
     Alert,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
+    Platform,
     RefreshControl,
     ScrollView,
     StatusBar,
@@ -366,56 +368,61 @@ export default function ProjectDetailScreen() {
                 transparent={true}
                 onRequestClose={() => setShowAddTaskModal(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-                        <View style={styles.modalHeader}>
-                            <Text style={[styles.modalTitle, { color: colors.text }]}>Add Task</Text>
-                            <TouchableOpacity onPress={() => setShowAddTaskModal(false)}>
-                                <Ionicons name="close" size={24} color={colors.text} />
-                            </TouchableOpacity>
-                        </View>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
+                    <View style={styles.modalOverlay}>
+                        <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+                            <View style={styles.modalHeader}>
+                                <Text style={[styles.modalTitle, { color: colors.text }]}>Add Task</Text>
+                                <TouchableOpacity onPress={() => setShowAddTaskModal(false)}>
+                                    <Ionicons name="close" size={24} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
 
-                        <ScrollView style={styles.modalBody}>
-                            <Text style={[styles.label, { color: colors.text }]}>Task Title *</Text>
-                            <TextInput
-                                style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-                                placeholder="Enter task title"
-                                placeholderTextColor={colors.placeholder}
-                                value={taskTitle}
-                                onChangeText={setTaskTitle}
-                                maxLength={100}
-                            />
+                            <ScrollView style={styles.modalBody}>
+                                <Text style={[styles.label, { color: colors.text }]}>Task Title *</Text>
+                                <TextInput
+                                    style={[styles.input, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                    placeholder="Enter task title"
+                                    placeholderTextColor={colors.placeholder}
+                                    value={taskTitle}
+                                    onChangeText={setTaskTitle}
+                                    maxLength={100}
+                                />
 
-                            <Text style={[styles.label, { color: colors.text }]}>Description</Text>
-                            <TextInput
-                                style={[styles.textArea, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
-                                placeholder="Enter task description"
-                                placeholderTextColor={colors.placeholder}
-                                value={taskDescription}
-                                onChangeText={setTaskDescription}
-                                multiline
-                                numberOfLines={4}
-                                maxLength={500}
-                            />
-                        </ScrollView>
+                                <Text style={[styles.label, { color: colors.text }]}>Description</Text>
+                                <TextInput
+                                    style={[styles.textArea, { backgroundColor: colors.cardBackground, color: colors.text, borderColor: colors.border }]}
+                                    placeholder="Enter task description"
+                                    placeholderTextColor={colors.placeholder}
+                                    value={taskDescription}
+                                    onChangeText={setTaskDescription}
+                                    multiline
+                                    numberOfLines={4}
+                                    maxLength={500}
+                                />
+                            </ScrollView>
 
-                        <View style={styles.modalFooter}>
-                            <TouchableOpacity
-                                style={[styles.cancelButton, { borderColor: colors.border }]}
-                                onPress={() => setShowAddTaskModal(false)}
-                            >
-                                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
-                            </TouchableOpacity>
+                            <View style={styles.modalFooter}>
+                                <TouchableOpacity
+                                    style={[styles.cancelButton, { borderColor: colors.border }]}
+                                    onPress={() => setShowAddTaskModal(false)}
+                                >
+                                    <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+                                </TouchableOpacity>
 
-                            <TouchableOpacity
-                                style={[styles.saveButton, { backgroundColor: colors.primary }]}
-                                onPress={addTaskToProject}
-                            >
-                                <Text style={styles.saveButtonText}>Add Task</Text>
-                            </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[styles.saveButton, { backgroundColor: colors.primary }]}
+                                    onPress={addTaskToProject}
+                                >
+                                    <Text style={styles.saveButtonText}>Add Task</Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </SafeAreaView>
     );

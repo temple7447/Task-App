@@ -61,12 +61,25 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="collections"
         options={{
-          title: 'Settings',
+          title: 'Collections',
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? 'settings' : 'settings-outline'}
+              name={focused ? 'wallet' : 'wallet-outline'}
+              size={24}
+              color={color}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="project-ideas"
+        options={{
+          title: 'Ideas',
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? 'bulb' : 'bulb-outline'}
               size={24}
               color={color}
             />

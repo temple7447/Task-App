@@ -13,7 +13,7 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Project, Task } from '../types/task-types';
+import { Project, ProjectCollection, ProjectIdea, Task } from '../types/task-types';
 
 // Storage keys - centralized for consistency and maintenance
 export const STORAGE_KEYS = {
@@ -23,6 +23,8 @@ export const STORAGE_KEYS = {
   ONBOARDING_COMPLETED: 'taskmaster_onboarding_completed',
   USER_PREFERENCES: 'taskmaster_user_preferences',
   APP_VERSION: 'taskmaster_app_version',
+  PROJECT_COLLECTIONS: 'taskmaster_project_collections',
+  PROJECT_IDEAS: 'taskmaster_project_ideas',
 } as const;
 
 // Error types for better error handling
@@ -180,6 +182,10 @@ function validateProjectObject(project: any): project is Project {
     return false;
   }
 
+  if (project.totalPrice !== undefined && typeof project.totalPrice !== 'number') {
+    return false;
+  }
+
   return true;
 }
 
@@ -200,6 +206,7 @@ function sanitizeProject(project: Project): Project {
     tags: project.tags || undefined,
     completedAt: project.completedAt ? new Date(project.completedAt) : undefined,
     taskCount: project.taskCount || 0,
+    totalPrice: project.totalPrice || 0,
   };
 }
 
@@ -954,10 +961,72 @@ export class StorageService {
       return allTasks.filter(task => task.projectId === projectId);
     } catch (error) {
       throw new StorageError(
-        'Failed to get tasks for project',
+        'Failed to retrieve tasks by project',
         StorageErrorType.UNKNOWN_ERROR,
         error as Error
       );
+    }
+  }
+
+  /**
+   * ============================================================================
+   * PROJECT COLLECTIONS & IDEAS
+   * ============================================================================
+   */
+
+  static async getProjectCollections(): Promise<ProjectCollection[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PROJECT_COLLECTIONS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      throw new StorageError('Failed to get collections', StorageErrorType.UNKNOWN_ERROR);
+    }
+  }
+
+  static async addProjectCollection(collection: ProjectCollection): Promise<void> {
+    try {
+      const existing = await this.getProjectCollections();
+      await AsyncStorage.setItem(STORAGE_KEYS.PROJECT_COLLECTIONS, JSON.stringify([...existing, collection]));
+    } catch (error) {
+      throw new StorageError('Failed to add collection', StorageErrorType.UNKNOWN_ERROR);
+    }
+  }
+
+  static async deleteProjectCollection(id: string): Promise<void> {
+    try {
+      const existing = await this.getProjectCollections();
+      const filtered = existing.filter(c => c.id !== id);
+      await AsyncStorage.setItem(STORAGE_KEYS.PROJECT_COLLECTIONS, JSON.stringify(filtered));
+    } catch (error) {
+      throw new StorageError('Failed to delete collection', StorageErrorType.UNKNOWN_ERROR);
+    }
+  }
+
+  static async getProjectIdeas(): Promise<ProjectIdea[]> {
+    try {
+      const data = await AsyncStorage.getItem(STORAGE_KEYS.PROJECT_IDEAS);
+      return data ? JSON.parse(data) : [];
+    } catch (error) {
+      throw new StorageError('Failed to get ideas', StorageErrorType.UNKNOWN_ERROR);
+    }
+  }
+
+  static async addProjectIdea(idea: ProjectIdea): Promise<void> {
+    try {
+      const existing = await this.getProjectIdeas();
+      await AsyncStorage.setItem(STORAGE_KEYS.PROJECT_IDEAS, JSON.stringify([...existing, idea]));
+    } catch (error) {
+      throw new StorageError('Failed to add idea', StorageErrorType.UNKNOWN_ERROR);
+    }
+  }
+
+  static async deleteProjectIdea(id: string): Promise<void> {
+    try {
+      const existing = await this.getProjectIdeas();
+      const filtered = existing.filter(i => i.id !== id);
+      await AsyncStorage.setItem(STORAGE_KEYS.PROJECT_IDEAS, JSON.stringify(filtered));
+    } catch (error) {
+      throw new StorageError('Failed to delete idea', StorageErrorType.UNKNOWN_ERROR);
     }
   }
 

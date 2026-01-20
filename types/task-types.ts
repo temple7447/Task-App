@@ -15,6 +15,12 @@ export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
  * Main Task interface representing a single task in the system
  * All fields are required except location which is optional
  */
+export interface SubTask {
+  id: string;
+  title: string;
+  isCompleted: boolean;
+}
+
 export interface Task {
   /** Unique identifier for the task */
   id: string;
@@ -54,6 +60,12 @@ export interface Task {
 
   /** Checkbox state for quick completion toggle */
   isChecked: boolean;
+
+  /** Optional sub-tasks for detailed tracking */
+  subTasks?: SubTask[];
+
+  /** Category for classification */
+  category?: 'work' | 'personal' | 'errand' | 'health' | 'finance' | 'other';
 }
 
 /**
@@ -448,4 +460,48 @@ export interface EarningStatistics {
 
   /** Worst earning day amount (excluding debt days) */
   worstDay: number;
+
+  /** Total expenses in Naira */
+  totalExpenses: number;
+
+  /** Net profit (Total Earned - Total Expenses) */
+  netProfit: number;
+
+  /** Amount saved in the savings jar */
+  totalSavings: number;
+}
+
+/**
+ * Business expense entry
+ */
+export interface Expense {
+  id: string;
+  date: Date;
+  amount: number;
+  category: string;
+  notes?: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Savings jar model
+ */
+export interface SavingsJar {
+  totalAmount: number;
+  history: {
+    id: string;
+    amount: number;
+    date: Date;
+    description: string;
+  }[];
+}
+
+/**
+ * Achievement streak tracking
+ */
+export interface AchievementStreak {
+  currentStreak: number;
+  bestStreak: number;
+  lastGoalMetDate?: Date;
 }

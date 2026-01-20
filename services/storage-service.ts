@@ -115,6 +115,26 @@ function validateTaskObject(task: any): task is Task {
     return false;
   }
 
+  // Validate category if present
+  if (task.category !== undefined) {
+    const validCategories = ['work', 'personal', 'errand', 'health', 'finance', 'other'];
+    if (!validCategories.includes(task.category)) {
+      return false;
+    }
+  }
+
+  // Validate subTasks if present
+  if (task.subTasks !== undefined) {
+    if (!Array.isArray(task.subTasks)) {
+      return false;
+    }
+    for (const subTask of task.subTasks) {
+      if (!subTask.id || !subTask.title || typeof subTask.isCompleted !== 'boolean') {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -134,6 +154,12 @@ function sanitizeTask(task: Task): Task {
     createdAt: new Date(task.createdAt),
     projectId: task.projectId ? String(task.projectId).trim() : undefined,
     isChecked: Boolean(task.isChecked),
+    category: task.category,
+    subTasks: task.subTasks?.map(st => ({
+      id: String(st.id),
+      title: String(st.title).trim(),
+      isCompleted: Boolean(st.isCompleted)
+    }))
   };
 }
 

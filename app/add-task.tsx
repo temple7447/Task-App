@@ -11,59 +11,72 @@
  * - Integration with local storage
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import { Colors } from '@/constants/theme';
+import { useColorScheme } from '@/hooks/use-color-scheme';
+import { StorageService } from '@/services/storage-service';
+import { Task } from '@/types/task-types';
+import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StatusBar,
-  StyleSheet,
-  ScrollView,
-  Alert,
-  Keyboard,
-  Platform,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  Modal,
+  View
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { StorageService, StorageError } from '@/services/storage-service';
 
 export default function AddTaskScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? 'light'];
-  
+
   // Form state
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedTime, setSelectedTime] = useState(new Date());
   const [location, setLocation] = useState('');
+  const [category, setCategory] = useState<Task['category']>('work');
+  const [subTasks, setSubTasks] = useState<string[]>([]);
+  const [currentSubTask, setCurrentSubTask] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Picker visibility state
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
-  
+
+  // Category options
+  const categories: { label: string; value: Task['category']; icon: keyof typeof Ionicons.glyphMap }[] = [
+    { label: 'Work', value: 'work', icon: 'briefcase-outline' },
+    { label: 'Personal', value: 'personal', icon: 'person-outline' },
+    { label: 'Errand', value: 'errand', icon: 'cart-outline' },
+    { label: 'Health', value: 'health', icon: 'fitness-outline' },
+    { label: 'Finance', value: 'finance', icon: 'cash-outline' },
+    { label: 'Other', value: 'other', icon: 'list-outline' },
+  ];
+
   // Initialize default values
   useEffect(() => {
     const now = new Date();
     // Set default date to tomorrow
     const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
     setSelectedDate(tomorrow);
-    
+
     // Set default time to next hour
     const nextHour = new Date();
     nextHour.setHours(now.getHours() + 1, 0, 0, 0);
     setSelectedTime(nextHour);
   }, []);
-  
+
   // Date and time picker handlers
   const handleDateChange = (event: any, date?: Date) => {
     setShowDatePicker(false);
@@ -71,14 +84,25 @@ export default function AddTaskScreen() {
       setSelectedDate(date);
     }
   };
-  
+
   const handleTimeChange = (event: any, time?: Date) => {
     setShowTimePicker(false);
     if (time) {
       setSelectedTime(time);
     }
   };
-  
+
+  const addSubTask = () => {
+    if (currentSubTask.trim()) {
+      setSubTasks([...subTasks, currentSubTask.trim()]);
+      setCurrentSubTask('');
+    }
+  };
+
+  const removeSubTask = (index: number) => {
+    setSubTasks(subTasks.filter((_, i) => i !== index));
+  };
+
   // Format date for display
   const formatDate = (date: Date): string => {
     return date.toLocaleDateString('en-US', {
@@ -87,7 +111,7 @@ export default function AddTaskScreen() {
       day: 'numeric'
     });
   };
-  
+
   // Format time for display
   const formatTime = (time: Date): string => {
     return time.toLocaleTimeString('en-US', {
@@ -96,15 +120,15 @@ export default function AddTaskScreen() {
       hour12: true
     });
   };
-  
+
   const handleSubmit = async () => {
     if (!title.trim() || !description.trim()) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
-    
+
     setIsSubmitting(true);
-    
+
     try {
       // Combine selected date and time
       const combinedDateTime = new Date(selectedDate);
@@ -114,18 +138,18 @@ export default function AddTaskScreen() {
         0,
         0
       );
-      
+
       // Check if the combined date/time is in the future
       if (combinedDateTime <= new Date()) {
         Alert.alert('Error', 'Please select a date and time in the future');
         setIsSubmitting(false);
         return;
       }
-      
+
       // Simple task creation
       const taskId = `task_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      
-      const newTask = {
+
+      const newTask: Task = {
         id: taskId,
         title: title.trim(),
         description: description.trim(),
@@ -133,14 +157,21 @@ export default function AddTaskScreen() {
         location: location.trim() || undefined,
         status: 'pending' as const,
         createdAt: new Date(),
+        isChecked: false,
+        category: category,
+        subTasks: subTasks.map(title => ({
+          id: `st_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+          title,
+          isCompleted: false
+        }))
       };
-      
+
       await StorageService.addTask(newTask);
-      
+
       Alert.alert('Success', 'Task created successfully!', [
         { text: 'OK', onPress: () => router.back() }
       ]);
-      
+
     } catch (error) {
       console.error('Error creating task:', error);
       Alert.alert('Error', 'Failed to create task. Please try again.');
@@ -148,14 +179,14 @@ export default function AddTaskScreen() {
       setIsSubmitting(false);
     }
   };
-  
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar
         barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
         backgroundColor={colors.background}
       />
-      
+
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <TouchableOpacity
@@ -168,7 +199,7 @@ export default function AddTaskScreen() {
         <Text style={[styles.headerTitle, { color: colors.text }]}>Add New Task</Text>
         <View style={styles.headerSpacer} />
       </View>
-      
+
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
@@ -207,7 +238,41 @@ export default function AddTaskScreen() {
                 {title.length}/100
               </Text>
             </View>
-            
+
+            {/* Category Selection */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.categoryList}>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat.value}
+                    style={[
+                      styles.categoryChip,
+                      {
+                        backgroundColor: category === cat.value ? colors.primary : colors.cardBackground,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                    onPress={() => setCategory(cat.value)}
+                  >
+                    <Ionicons
+                      name={cat.icon}
+                      size={18}
+                      color={category === cat.value ? 'white' : colors.text}
+                    />
+                    <Text
+                      style={[
+                        styles.categoryLabel,
+                        { color: category === cat.value ? 'white' : colors.text },
+                      ]}
+                    >
+                      {cat.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
             {/* Task Description */}
             <View style={styles.fieldContainer}>
               <Text style={[styles.fieldLabel, { color: colors.text }]}>
@@ -237,7 +302,7 @@ export default function AddTaskScreen() {
                 {description.length}/500
               </Text>
             </View>
-            
+
             {/* Date and Time Row */}
             <View style={styles.dateTimeRow}>
               {/* Date */}
@@ -262,7 +327,7 @@ export default function AddTaskScreen() {
                   </Text>
                 </TouchableOpacity>
               </View>
-              
+
               {/* Time */}
               <View style={[styles.fieldContainer, styles.dateTimeField]}>
                 <Text style={[styles.fieldLabel, { color: colors.text }]}>
@@ -286,7 +351,7 @@ export default function AddTaskScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            
+
             {/* Location */}
             <View style={styles.fieldContainer}>
               <Text style={[styles.fieldLabel, { color: colors.text }]}>Location</Text>
@@ -315,9 +380,44 @@ export default function AddTaskScreen() {
                 {location.length}/200
               </Text>
             </View>
+
+            {/* Sub-tasks Section */}
+            <View style={styles.fieldContainer}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Sub-tasks</Text>
+              <View style={styles.subtaskInputRow}>
+                <TextInput
+                  style={[
+                    styles.subtaskInput,
+                    {
+                      backgroundColor: colors.cardBackground,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="Add a sub-task..."
+                  placeholderTextColor={colors.placeholder}
+                  value={currentSubTask}
+                  onChangeText={setCurrentSubTask}
+                  onSubmitEditing={addSubTask}
+                />
+                <TouchableOpacity
+                  style={[styles.addSubtaskBtn, { backgroundColor: colors.primary }]}
+                  onPress={addSubTask}
+                >
+                  <Ionicons name="add" size={24} color="white" />
+                </TouchableOpacity>
+              </View>
+
+              {subTasks.map((st, index) => (
+                <View key={index} style={[styles.subtaskItem, { borderColor: colors.border }]}>
+                  <Ionicons name="remove-circle-outline" size={20} color={colors.error} onPress={() => removeSubTask(index)} />
+                  <Text style={[styles.subtaskText, { color: colors.text }]}>{st}</Text>
+                </View>
+              ))}
+            </View>
           </View>
         </ScrollView>
-        
+
         {/* Submit Button */}
         <View style={[styles.buttonContainer, { backgroundColor: colors.background }]}>
           <TouchableOpacity
@@ -343,7 +443,7 @@ export default function AddTaskScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-      
+
       {/* Date Picker */}
       {showDatePicker && (
         <DateTimePicker
@@ -355,7 +455,7 @@ export default function AddTaskScreen() {
           maximumDate={new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)} // 1 year from now
         />
       )}
-      
+
       {/* Time Picker */}
       {showTimePicker && (
         <DateTimePicker
@@ -446,6 +546,54 @@ const styles = StyleSheet.create({
   dateTimeInput: {
     flex: 1,
     fontSize: 16,
+  },
+  categoryList: {
+    paddingVertical: 8,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1,
+    gap: 8,
+  },
+  categoryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  subtaskInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  subtaskInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 14,
+  },
+  addSubtaskBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  subtaskItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    gap: 12,
+  },
+  subtaskText: {
+    fontSize: 14,
+    flex: 1,
   },
   dateTimeText: {
     flex: 1,

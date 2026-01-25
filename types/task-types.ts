@@ -303,6 +303,18 @@ export interface ThemeColors {
 export type ProjectStatus = 'active' | 'completed' | 'archived' | 'onHold';
 
 /**
+ * Subscription associated with a project
+ */
+export interface ProjectSubscription {
+  id: string;
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  cost?: number;
+  status: 'active' | 'expired' | 'cancelled';
+}
+
+/**
  * Main Project interface representing a project in the system
  */
 export interface Project {
@@ -338,6 +350,9 @@ export interface Project {
 
   /** Total price for the project (budget) */
   totalPrice?: number;
+
+  /** Optional subscriptions associated with this project */
+  subscriptions?: ProjectSubscription[];
 }
 
 /**

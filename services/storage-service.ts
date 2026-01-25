@@ -212,6 +212,22 @@ function validateProjectObject(project: any): project is Project {
     return false;
   }
 
+  // Validate subscriptions if present
+  if (project.subscriptions !== undefined) {
+    if (!Array.isArray(project.subscriptions)) {
+      return false;
+    }
+    for (const sub of project.subscriptions) {
+      if (!sub.id || !sub.name || !sub.startDate || !sub.endDate || !sub.status) {
+        return false;
+      }
+      const validStatuses = ['active', 'expired', 'cancelled'];
+      if (!validStatuses.includes(sub.status)) {
+        return false;
+      }
+    }
+  }
+
   return true;
 }
 
@@ -233,6 +249,14 @@ function sanitizeProject(project: Project): Project {
     completedAt: project.completedAt ? new Date(project.completedAt) : undefined,
     taskCount: project.taskCount || 0,
     totalPrice: project.totalPrice || 0,
+    subscriptions: project.subscriptions?.map(sub => ({
+      id: String(sub.id),
+      name: String(sub.name).trim(),
+      startDate: new Date(sub.startDate),
+      endDate: new Date(sub.endDate),
+      cost: sub.cost !== undefined ? Number(sub.cost) : undefined,
+      status: sub.status as 'active' | 'expired' | 'cancelled'
+    }))
   };
 }
 
